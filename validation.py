@@ -1,7 +1,8 @@
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.base import clone
 from sklearn.metrics import (
     accuracy_score, 
@@ -11,19 +12,58 @@ from sklearn.metrics import (
     confusion_matrix
 )
 
-def evaluer_modele_kfold(modele, X, y, classes_names, n_splits=5, random_seed=42):
-    print(f"🚀 Lancement de la validation croisée stricte ({n_splits} Folds)")
+def evaluer_modele_kfold(
+    modele, 
+    X,                  # La matrice des caractéristiques (X_final)
+    y,                  # Le vecteur cible (y_final)
+    data,               # Le DataFrame contenant les métadonnées cliniques
+    col_group,          # Nom de la colonne clé primaire (ex: 'unique_patient_id')
+    noms_classes,       # Liste des noms pour l'affichage ['CHC', 'CCK']
+    col_age=None,       # (Optionnel) Nom de la colonne Âge
+    col_sexe=None,      # (Optionnel) Nom de la colonne Sexe
+    n_splits=5, 
+    random_seed=42
+):
+    print(f"🚀 Lancement du Stratified GROUP K-Fold ({n_splits} Folds)")
     np.random.seed(random_seed)
-    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_seed)
     
-    fold_metrics = {
-        'accuracy': [], 'auc': [], 'f1': [], 'mcc': []
-    }
+    groups = data[col_group].values
+    
+    elements_stratification = [pd.Series(y).astype(str)]
+    description_equilibrage = "Maladie"
+    
+    if col_sexe is not None:
+        sexe_vals = data[col_sexe].values
+        elements_stratification.append(pd.Series(sexe_vals).astype(str))
+        description_equilibrage += f" + Sexe ('{col_sexe}')"
+        
+    if col_age is not None:
+        age_vals = data[col_age].values
+        tranches_age = pd.cut(age_vals, bins=[0, 50, 70, 120], labels=['<50', '50-70', '>70']).astype(str)
+        elements_stratification.append(pd.Series(tranches_age))
+        description_equilibrage += f" + Âge ('{col_age}')"
+    
+    df_temp = pd.concat(elements_stratification, axis=1)
+    strat_array = df_temp.apply(lambda row: "_".join(row), axis=1).values
+    
+    print(f"⚖️ Équilibrage automatique appliqué sur : {description_equilibrage}")
+    # =========================================================================
+    
+    sgkf = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=random_seed)
+    
+    fold_metrics = {'accuracy': [], 'auc': [], 'f1': [], 'mcc': []}
     y_vrais_total, y_pred_total, y_prob_total = [], [], []
+    
+    repartition_data = []
 
-    for fold, (train_idx, test_idx) in enumerate(skf.split(X, y), 1):
+    for fold, (train_idx, test_idx) in enumerate(sgkf.split(X, y=strat_array, groups=groups), 1):
+        
+        valeurs_uniques, comptes = np.unique(strat_array[test_idx], return_counts=True)
+        for val, count in zip(valeurs_uniques, comptes):
+            repartition_data.append({'Fold': f"Fold {fold}", 'Sous-groupe': val, 'Patients': count})
+        
         X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
-        y_train, y_test = y[train_idx], y[test_idx]
+        y_train, y_test = y[train_idx], y[test_idx] 
         
         modele_fold = clone(modele)
         modele_fold.fit(X_train, y_train)
@@ -50,19 +90,33 @@ def evaluer_modele_kfold(modele, X, y, classes_names, n_splits=5, random_seed=42
     print("\n" + "="*50)
     print("🏆 BILAN DES MÉTRIQUES ESSENTIELLES (MOYENNE ± ÉCART-TYPE)")
     print("="*50)
-    print(f"Accuracy (Précision globale) : {np.mean(fold_metrics['accuracy']):.3f} (± {np.std(fold_metrics['accuracy']):.3f})")
-    print(f"ROC AUC (Pouvoir séparateur): {np.mean(fold_metrics['auc']):.3f} (± {np.std(fold_metrics['auc']):.3f})")
-    print(f"F1-Score (Équilibre global)  : {np.mean(fold_metrics['f1']):.3f} (± {np.std(fold_metrics['f1']):.3f})")
-    print(f"Matthews Correlation (MCC)   : {np.mean(fold_metrics['mcc']):.3f} (± {np.std(fold_metrics['mcc']):.3f})")
+    print(f"Accuracy : {np.mean(fold_metrics['accuracy']):.3f} (± {np.std(fold_metrics['accuracy']):.3f})")
+    print(f"ROC AUC  : {np.mean(fold_metrics['auc']):.3f} (± {np.std(fold_metrics['auc']):.3f})")
+    print(f"F1-Score : {np.mean(fold_metrics['f1']):.3f} (± {np.std(fold_metrics['f1']):.3f})")
+    print(f"MCC      : {np.mean(fold_metrics['mcc']):.3f} (± {np.std(fold_metrics['mcc']):.3f})")
     print("="*50)
     
-    plt.figure(figsize=(5, 4))
+    df_repartition = pd.DataFrame(repartition_data)
+    df_pivot = df_repartition.pivot(index='Fold', columns='Sous-groupe', values='Patients').fillna(0)
+    df_pourcentages = df_pivot.div(df_pivot.sum(axis=1), axis=0) * 100
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+    df_pourcentages.plot(kind='bar', stacked=True, ax=axes[0], colormap='tab20', edgecolor='white')
+    axes[0].set_title(f"Composition des Folds de Test\n({description_equilibrage})", fontsize=11, fontweight='bold')
+    axes[0].set_ylabel("Proportion (%)")
+    axes[0].set_xlabel("")
+    axes[0].legend(title="Sous-groupes", bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='small')
+    axes[0].tick_params(axis='x', rotation=0)
+
     cm_total = confusion_matrix(y_vrais_total, y_pred_total)
-    sns.heatmap(cm_total, annot=True, fmt='d', cmap='Blues', 
-                xticklabels=classes_names, yticklabels=classes_names)
-    plt.title(f"Matrice de Confusion Cumulée ({n_splits} Folds)")
-    plt.ylabel('Vérité Terrain')
-    plt.xlabel('Prédiction Modèle')
+    sns.heatmap(cm_total, annot=True, fmt='d', cmap='Blues', ax=axes[1], 
+                xticklabels=noms_classes, yticklabels=noms_classes)
+    axes[1].set_title(f"Matrice de Confusion Cumulée ({n_splits} Folds)", fontsize=11, fontweight='bold')
+    axes[1].set_ylabel('Vérité Terrain')
+    axes[1].set_xlabel('Prédiction Modèle')
+    
+    plt.tight_layout()
     plt.show()
     
     return y_vrais_total, y_prob_total
