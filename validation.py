@@ -17,7 +17,7 @@ def evaluer_modele_kfold(
     X,                  # La matrice des caractéristiques (X_final)
     y,                  # Le vecteur cible (y_final)
     data,               # Le DataFrame contenant les métadonnées cliniques
-    col_group,          # Nom de la colonne clé primaire (ex: 'unique_patient_id')
+    col_group,          # Nom de la colonne OU Liste de colonnes (ex: ['patient_id', 'lesion_id'])
     noms_classes,       # Liste des noms pour l'affichage ['CHC', 'CCK']
     col_age=None,       # (Optionnel) Nom de la colonne Âge
     col_sexe=None,      # (Optionnel) Nom de la colonne Sexe
@@ -27,24 +27,29 @@ def evaluer_modele_kfold(
     print(f"🚀 Lancement du Stratified GROUP K-Fold ({n_splits} Folds)")
     np.random.seed(random_seed)
     
-    groups = data[col_group].values
-    
+    if isinstance(col_group, list):
+
+        groups = data[col_group].astype(str).agg('_'.join, axis=1).to_numpy()
+    else:
+        groups = data[col_group].to_numpy()
+        
+
     elements_stratification = [pd.Series(y).astype(str)]
     description_equilibrage = "Maladie"
     
     if col_sexe is not None:
-        sexe_vals = data[col_sexe].values
+        sexe_vals = data[col_sexe].to_numpy()
         elements_stratification.append(pd.Series(sexe_vals).astype(str))
         description_equilibrage += f" + Sexe ('{col_sexe}')"
         
     if col_age is not None:
-        age_vals = data[col_age].values
+        age_vals = data[col_age].to_numpy()
         tranches_age = pd.cut(age_vals, bins=[0, 50, 70, 120], labels=['<50', '50-70', '>70']).astype(str)
         elements_stratification.append(pd.Series(tranches_age))
         description_equilibrage += f" + Âge ('{col_age}')"
     
     df_temp = pd.concat(elements_stratification, axis=1)
-    strat_array = df_temp.apply(lambda row: "_".join(row), axis=1).values
+    strat_array = df_temp.apply(lambda row: "_".join(row), axis=1).to_numpy()
     
     print(f"⚖️ Équilibrage automatique appliqué sur : {description_equilibrage}")
     # =========================================================================
