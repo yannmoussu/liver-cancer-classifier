@@ -15,6 +15,7 @@ from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 import seaborn as sns
+from validation import evaluer_modele_kfold
 
 def load_data(csv_path):
     """Load the CSV file with semicolon separator."""
@@ -23,7 +24,7 @@ def load_data(csv_path):
 
 def preprocess(df):
     """Select features and target, handle missing values."""
-    # Keep only CHC (1) and CCk (2)
+    # Keep only CHC (1) and CK (2)
     df = df[df['Type_tumeur'].isin([1, 2])].copy()
     # Define target
     y = df['Type_tumeur'].map({1: 0, 2: 1})  # 0 for CHC, 1 for CCk
@@ -36,15 +37,16 @@ def preprocess(df):
     X = X.fillna(0)
     # Ensure numeric
     X = X.apply(pd.to_numeric, errors='coerce').fillna(0)
-    return X, y, feature_cols
+    return X, y, feature_cols, df
 
 def main():
     csv_path = 'data/Relectures_imageries(Feuil1).csv'
-    df = load_data(csv_path)
-    print(f"Dataset shape: {df.shape}")
-    print(f"Tumor type distribution:\n{df['Type_tumeur'].value_counts()}")
+    df_raw = load_data(csv_path)
+    print(f"Dataset shape: {df_raw.shape}")
+    print(f"Tumor type distribution:\n{df_raw['Type_tumeur'].value_counts()}")
 
-    X, y, feature_names = preprocess(df)
+    # Preprocess (filtering inside)
+    X, y, feature_names, df = preprocess(df_raw)
     print(f"Features shape: {X.shape}")
 
     # Split
@@ -169,6 +171,18 @@ def main():
     plot_path = 'plots/correlation_matrix_Relectures_imagerie.png'
     plt.savefig(plot_path)
     print(f"Saved correlation matrix plot to {plot_path}")
+
+    # Evaluate with Stratified Group K-Fold using patient number as group
+    # We use the filtered df (df) and group by Patient_number to avoid leakage
+    print("\n=== Cross-validation with Stratified Group K-Fold (by Patient) ===")
+    evaluer_modele_kfold(
+        logreg,
+        X,
+        y,
+        df,  # filtered dataframe (only CHC and CCk)
+        ['Patient_number'],  # group by patient to avoid intra-patient leakage
+        ['CHC', 'CCk']
+    )
 
     # Optionally, save model and scaler for later use on mixte tumors
     import joblib
