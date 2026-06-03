@@ -87,20 +87,18 @@ df_results = pd.DataFrame(results)
 if not df_results.empty:
     # metrics = ['Accuracy', 'AUC', 'F1', 'MCC']
     metrics = ['Accuracy', 'F1']
-    # fig, axes = plt.subplots(2, 2, figsize=(16, 12))
-    fig, axes = plt.subplots(1, 2, figsize=(16, 6))
-    axes = axes.flatten()
+    # fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+    # axes = axes.flatten()
 
-    for i, metric in enumerate(metrics):
+    for metric in metrics:
+        plt.figure(figsize=(10, 6))
         # Pivot des données pour seaborn (Lignes: Fichiers, Colonnes: C, Valeurs: Métrique)
         pivot_table = df_results.pivot(index='Input', columns='C', values=metric)
-        sns.heatmap(pivot_table, annot=True, cmap='BuPu', ax=axes[i], fmt='.3f', square=True)
-        axes[i].set_title(f'Heatmap - {metric}', fontweight='bold')
-        axes[i].set_ylabel('')
-        axes[i].set_xlabel('Paramètre C (Régularisation)')
-
-    plt.suptitle("Comparaison des métriques (Moyennes k-fold) selon l'Input et C", fontsize=16, fontweight='bold')
-    plt.tight_layout()
-    plt.show()
+        sns.heatmap(pivot_table, annot=True, cmap='BuPu', fmt='.1%', square=True)
+        plt.title(f'Heatmap - {metric}\nComparaison (Moyennes k-fold) selon l\'Input et C', fontweight='bold', fontsize=14)
+        plt.ylabel('')
+        plt.xlabel('Paramètre C (Régularisation)')
+        plt.tight_layout()
+        plt.show()
 else:
     print("Aucun résultat n'a pu être généré. Vérifiez les fichiers d'entrée.")
