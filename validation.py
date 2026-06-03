@@ -22,7 +22,8 @@ def evaluer_modele_kfold(
     col_age=None,       # (Optionnel) Nom de la colonne Âge
     col_sexe=None,      # (Optionnel) Nom de la colonne Sexe
     n_splits=5, 
-    random_seed=42
+    random_seed=42,
+    show_plots=True
 ):
     print(f"🚀 Lancement du Stratified GROUP K-Fold ({n_splits} Folds)")
     np.random.seed(random_seed)
@@ -48,7 +49,7 @@ def evaluer_modele_kfold(
         elements_stratification.append(pd.Series(tranches_age))
         description_equilibrage += f" + Âge ('{col_age}')"
     
-    df_temp = pd.concat(elements_stratification, axis=1)
+    df_temp = pd.concat(elements_stratification, axis=1).astype(str)
     strat_array = df_temp.apply(lambda row: "_".join(row), axis=1).to_numpy()
     
     print(f"⚖️ Équilibrage automatique appliqué sur : {description_equilibrage}")
@@ -122,6 +123,9 @@ def evaluer_modele_kfold(
     axes[1].set_xlabel('Prédiction Modèle')
     
     plt.tight_layout()
-    plt.show()
+    if show_plots:
+        plt.show()
+    else:
+        plt.close()
     
-    return y_vrais_total, y_prob_total
+    return y_vrais_total, y_prob_total, fold_metrics
