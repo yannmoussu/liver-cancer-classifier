@@ -4,6 +4,7 @@ Analyse statistique avancée et exportation de matrices pour modélisation (Rég
 - Génère la matrice de synthèse demandée (Lignes = Clinique, Colonnes = Radiomique).
 - Exporte la matrice Patient complète et alignée pour entraîner la régression.
 - Conserve la génération des 4 graphiques de criblage et heatmaps épurées.
+- Exporte les fichiers graphiques (.png) dans plots/correlation et les données (.csv) dans data/correlation.
 """
 
 import pandas as pd
@@ -17,6 +18,10 @@ import seaborn as sns
 
 # Désactiver les avertissements de conversion
 warnings.filterwarnings('ignore')
+
+# Définition des répertoires cibles demandés
+DIR_PLOTS = os.path.join('plots', 'correlation')
+DIR_DATA = os.path.join('data', 'correlation')
 
 def find_file(filename):
     """Cherche le fichier à la racine ou dans un sous-dossier 'data'"""
@@ -43,6 +48,9 @@ def generate_plots(df_all, df_selected, liste_complete_clinique):
     print("\n3. Génération des graphiques d'illustration...")
     sns.set_theme(style="whitegrid")
     
+    # Sécurité : Création du dossier cible pour les plots
+    os.makedirs(DIR_PLOTS, exist_ok=True)
+    
     top_prioritaire = ['Nonperiph_washout', 'Late_enhancement', 'Capsule', 'LR-M']
     selected_pairs = set(df_selected['source_feature'] + "||" + df_selected['target_feature'])
     
@@ -65,11 +73,11 @@ def generate_plots(df_all, df_selected, liste_complete_clinique):
     plt.axvline(x=0.80, color='#6a1b9a', linestyle='-.', linewidth=1.5, label='Seuil taille (|Rho| = 0.80)')
     plt.axhline(y=-np.log10(0.05), color='#e65100', linestyle='--', linewidth=1.5, label='Seuil p-value (p = 0.05)')
     plt.title("Criblage du Catalogue Radiomique : Axe Corrélation", fontsize=13, fontweight='bold', pad=15)
-    plt.xlabel("Force de la relation | Coefficient de Spearman |", fontsize=12)
-    plt.ylabel("Significativité Statistique [-log10(p-value)]", fontsize=12)
+    plt.xlabel("|Coefficient de Spearman|", fontsize=12)
+    plt.ylabel("Significativité [-log10(p-value)]", fontsize=12)
     plt.legend(loc='upper left', frameon=True)
     plt.tight_layout()
-    plt.savefig('visualisation_criblage_par_correlation.png', dpi=300)
+    plt.savefig(os.path.join(DIR_PLOTS, 'visualisation_criblage_par_correlation.png'), dpi=300)
     plt.close()
 
     # GRAPHIC 1B : AUC
@@ -85,11 +93,11 @@ def generate_plots(df_all, df_selected, liste_complete_clinique):
         plt.axvline(x=0.35, color='#d32f2f', linestyle='--', linewidth=1.5, label="Seuil AUC = 0.35")
         plt.axhline(y=-np.log10(0.05), color='#e65100', linestyle='--', linewidth=1.5, label='Seuil p-value')
         plt.title("Criblage du Catalogue Radiomique : Axe Performance Diagnostic", fontsize=13, fontweight='bold', pad=15)
-        plt.xlabel("Pouvoir discriminant (AUC-ROC)", fontsize=12)
-        plt.ylabel("Significativité Statistique [-log10(p-value)]", fontsize=12)
+        plt.xlabel("AUC-ROC", fontsize=12)
+        plt.ylabel("Significativité [-log10(p-value)]", fontsize=12)
         plt.legend(loc='upper center', frameon=True)
         plt.tight_layout()
-        plt.savefig('visualisation_criblage_par_auc.png', dpi=300)
+        plt.savefig(os.path.join(DIR_PLOTS, 'visualisation_criblage_par_auc.png'), dpi=300)
         plt.close()
 
     # GRAPHIC 2 : FOCUS HEATMAP
@@ -111,7 +119,7 @@ def generate_plots(df_all, df_selected, liste_complete_clinique):
         plt.xticks(rotation=25, ha='right')
         plt.title("Focus Benchmark : Biomarqueurs Validés (Modèle LogReg)", fontsize=13, fontweight='bold', pad=15)
         plt.tight_layout()
-        plt.savefig('heatmap_focus_top5_logreg.png', dpi=300)
+        plt.savefig(os.path.join(DIR_PLOTS, 'heatmap_focus_top5_logreg.png'), dpi=300)
         plt.close()
 
     # GRAPHIC 3 : HEATMAP EXHAUSTIVE
@@ -136,11 +144,23 @@ def generate_plots(df_all, df_selected, liste_complete_clinique):
                             else:
                                 annot_all.loc[idx, col] = f"{matching_rows['auc_roc'].values[0]:.2f}{get_p_value_asterisks(p)}"
         plt.figure(figsize=(max(12, len(ordre_affichage_final)*1.3), max(9, len(pivot_all)*0.38)))
-        sns.heatmap(pivot_all.fillna(0.5), annot=annot_all, fmt="", cmap="coolwarm", center=0.5, linewidths=0.5)
+        ax = sns.heatmap(
+            pivot_all.fillna(0.5),
+            annot=annot_all,
+            fmt="",
+            cmap="coolwarm",
+            center=0.5,
+            linewidths=0.5,
+            cbar_kws={"label": "Valeur absolue de AUC-ROC"},
+        )
+        cbar = ax.collections[0].colorbar
+        cbar.ax.tick_params(labelsize=18) 
+
+        ax.collections[0].colorbar.set_label("|AUC-ROC|", fontsize=18, fontweight="bold")
         plt.title("Cartographie Épurée du Benchmark Radiomique", fontsize=14, fontweight='bold', pad=20)
-        plt.xticks(rotation=35, ha='right')
+        plt.xticks(rotation=35, ha='right', fontsize=18)        
         plt.tight_layout()
-        plt.savefig('heatmap_toutes_variables_cliniques.png', dpi=300)
+        plt.savefig(os.path.join(DIR_PLOTS, 'heatmap_toutes_variables_cliniques.png'), dpi=300)
         plt.close()
 
 
@@ -151,6 +171,9 @@ def main():
     except FileNotFoundError as e:
         print(e)
         return
+
+    # Sécurité : Création du dossier cible pour les CSV de données
+    os.makedirs(DIR_DATA, exist_ok=True)
 
     # 1. Chargement et nettoyage des fichiers sources
     df_radio_raw = pd.read_csv(flattened_path, sep=';', low_memory=False)
@@ -181,7 +204,6 @@ def main():
     records = []
     
     # Création de la structure de stockage pour la matrice de synthèse demandée
-    # Lignes = Clinique, Colonnes = Radiomique
     matrice_synthese = pd.DataFrame(index=cols_cliniques, columns=radio_numeric_cols)
 
     for src_col in radio_numeric_cols:
@@ -223,18 +245,18 @@ def main():
 
     df_all = pd.DataFrame(records)
 
-    # 3. Sauvegarde de la matrice de synthèse statistique demandée
-    os.makedirs('data', exist_ok=True)
-    matrice_synthese.to_csv('data/matrice_synthese_statistiques.csv', sep=';')
-    print("[OK] Matrice de synthèse enregistrée (Lignes=Clinique, Cols=Radio) : data/matrice_synthese_statistiques.csv")
+    # 3. Sauvegarde de la matrice de synthèse statistique demandée dans data/correlation
+    path_matrice_synthese = os.path.join(DIR_DATA, 'matrice_synthese_statistiques.csv')
+    matrice_synthese.to_csv(path_matrice_synthese, sep=';')
+    print(f"[OK] Matrice de synthèse enregistrée : {path_matrice_synthese}")
 
-    # 4. EXPORTATION DE LA MATRICE PATIENTS (Pour votre future Régression)
-    # On fusionne la clinique et la radiomique sur le même index 'patient_num'
+    # 4. EXPORTATION DE LA MATRICE PATIENTS dans data/correlation
     matrice_regression_patients = pd.concat([df_clinique, df_radio[radio_numeric_cols]], axis=1)
-    matrice_regression_patients.to_csv('data/matrice_patients_pour_regression.csv', sep=';', index_label='patient_num')
-    print("[OK] Base Patients enregistrée pour Régression                  : data/matrice_patients_pour_regression.csv")
+    path_matrice_patients = os.path.join(DIR_DATA, 'matrice_patients_pour_regression.csv')
+    matrice_regression_patients.to_csv(path_matrice_patients, sep=';', index_label='patient_num')
+    print(f"[OK] Base Patients enregistrée pour Régression : {path_matrice_patients}")
 
-    # 5. Filtrage d'excellence pour les graphiques
+    # 5. Filtrage d'excellence pour les graphiques et export final dans data/correlation
     filtre_taille = (df_all['target_feature'] == 'Size_mm') & (df_all['spearman_correlation'].abs() >= 0.80) & (df_all['kruskal_p_value'] < 0.05)
     filtre_binaire = (df_all['target_feature'] != 'Size_mm') & (~df_all['auc_discriminative_strength'].isna()) & (df_all['auc_discriminative_strength'] >= 0.65) & (df_all['kruskal_p_value'] < 0.05)
     filtre_multiclasse = (df_all['target_feature'] != 'Size_mm') & (df_all['auc_discriminative_strength'].isna()) & (df_all['spearman_correlation'].abs() >= 0.60) & (df_all['kruskal_p_value'] < 0.05)
@@ -242,10 +264,14 @@ def main():
     df_selected = df_all[filtre_taille | filtre_binaire | filtre_multiclasse].copy()
     df_selected['tri_force'] = df_selected['auc_discriminative_strength'].fillna(df_selected['spearman_correlation'].abs())
     df_selected = df_selected.sort_values(by=['target_feature', 'tri_force'], ascending=[True, False])
-    df_selected.to_csv('data/features_selectionnees_benchmark.csv', index=False, sep=';')
     
+    path_features_selectionnees = os.path.join(DIR_DATA, 'features_selectionnees_benchmark.csv')
+    df_selected.to_csv(path_features_selectionnees, index=False, sep=';')
+    print(f"[OK] Caractéristiques sélectionnées enregistrées : {path_features_selectionnees}")
+    
+    # Appel de la fonction graphique
     generate_plots(df_all, df_selected, cols_cliniques)
-    print("\n[SUCCÈS] Script exécuté avec succès. Vos fichiers pour la régression sont prêts.")
+    print("\n[SUCCÈS] Script exécuté avec succès. Vos graphiques et tables sont compartimentés dans 'plots/correlation' et 'data/correlation'.")
 
 if __name__ == '__main__':
     main()
