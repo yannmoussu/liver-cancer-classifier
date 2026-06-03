@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """
-Analyse statistique avancée pour le Benchmark Radiomique vs Clinique.
-Calcule pour chaque couple (Feature, Cible Clinique) :
-- La corrélation de Spearman
-- La p-value de Kruskal-Wallis (différence significative entre groupes)
-- L'AUC-ROC (capacité discriminante pour les cibles binaires)
+Analyse statistique avancée et exportation de matrices pour modélisation (Régression).
+- Génère la matrice de synthèse demandée (Lignes = Clinique, Colonnes = Radiomique).
+- Exporte la matrice Patient complète et alignée pour entraîner la régression.
+- Conserve la génération des 4 graphiques de criblage et heatmaps épurées.
 """
 
 import pandas as pd
@@ -13,8 +12,10 @@ from scipy.stats import kruskal
 from sklearn.metrics import roc_auc_score
 import os
 import warnings
+import matplotlib.pyplot as plt
+import seaborn as sns
 
-# Désactiver les avertissements de conversion de type de sklearn
+# Désactiver les avertissements de conversion
 warnings.filterwarnings('ignore')
 
 def find_file(filename):
@@ -24,14 +25,126 @@ def find_file(filename):
     potential_path = os.path.join('data', filename)
     if os.path.exists(potential_path):
         return potential_path
-    raise FileNotFoundError(
-        f"\n[ERREUR] Impossible de trouver le fichier '{filename}'.\n"
-        f"Assure-toi de l'avoir bien placé dans ton dossier de projet :\n"
-        f"-> {os.getcwd()} ou dans {os.getcwd()}/data/"
+    raise FileNotFoundError(f"[ERREUR] Impossible de trouver le fichier '{filename}'.")
+
+def get_p_value_asterisks(p_val):
+    """Retourne la notation par étoiles standard pour la significativité"""
+    if pd.isna(p_val) or p_val >= 0.05:
+        return ""
+    elif p_val < 0.001:
+        return "***"
+    elif p_val < 0.01:
+        return "**"
+    else:
+        return "*"
+
+def generate_plots(df_all, df_selected, liste_complete_clinique):
+    """Génère les graphiques d'illustration du benchmark"""
+    print("\n3. Génération des graphiques d'illustration...")
+    sns.set_theme(style="whitegrid")
+    
+    top_prioritaire = ['Nonperiph_washout', 'Late_enhancement', 'Capsule', 'LR-M']
+    selected_pairs = set(df_selected['source_feature'] + "||" + df_selected['target_feature'])
+    
+    df_all['Statut'] = np.where(
+        (df_all['source_feature'] + "||" + df_all['target_feature']).isin(selected_pairs), 
+        'Sélectionné (Biomarqueur)', 'Rejeté (Bruit)'
     )
+    df_all['Groupe_Clinique'] = np.where(df_all['target_feature'].isin(top_prioritaire), 'Top LogReg', 'Autres critères')
+    df_all['minus_log_p'] = -np.log10(df_all['kruskal_p_value'].astype(float) + 1e-15)
+
+    # GRAPHIC 1A : CORRÉLATION
+    plt.figure(figsize=(12, 8))
+    df_all['abs_spearman'] = df_all['spearman_correlation'].abs()
+    sns.scatterplot(
+        data=df_all, x='abs_spearman', y='minus_log_p', hue='Statut', style='Groupe_Clinique',
+        markers={'Autres critères': 'o', 'Top LogReg': 'X'},
+        palette={'Rejeté (Bruit)': '#b0bec5', 'Sélectionné (Biomarqueur)': '#2e7d32'}, alpha=0.75, s=80
+    )
+    plt.axvline(x=0.60, color='#d32f2f', linestyle='--', linewidth=1.5, label='Seuil multiclasse (|Rho| = 0.60)')
+    plt.axvline(x=0.80, color='#6a1b9a', linestyle='-.', linewidth=1.5, label='Seuil taille (|Rho| = 0.80)')
+    plt.axhline(y=-np.log10(0.05), color='#e65100', linestyle='--', linewidth=1.5, label='Seuil p-value (p = 0.05)')
+    plt.title("Criblage du Catalogue Radiomique : Axe Corrélation", fontsize=13, fontweight='bold', pad=15)
+    plt.xlabel("Force de la relation | Coefficient de Spearman |", fontsize=12)
+    plt.ylabel("Significativité Statistique [-log10(p-value)]", fontsize=12)
+    plt.legend(loc='upper left', frameon=True)
+    plt.tight_layout()
+    plt.savefig('visualisation_criblage_par_correlation.png', dpi=300)
+    plt.close()
+
+    # GRAPHIC 1B : AUC
+    plt.figure(figsize=(12, 8))
+    df_auc_only = df_all[df_all['auc_roc'].notna()].copy()
+    if not df_auc_only.empty:
+        sns.scatterplot(
+            data=df_auc_only, x='auc_roc', y='minus_log_p', hue='Statut', style='Groupe_Clinique',
+            markers={'Autres critères': 'o', 'Top LogReg': 'X'},
+            palette={'Rejeté (Bruit)': '#b0bec5', 'Sélectionné (Biomarqueur)': '#2e7d32'}, alpha=0.75, s=80
+        )
+        plt.axvline(x=0.65, color='#d32f2f', linestyle='--', linewidth=1.5, label="Seuil AUC = 0.65")
+        plt.axvline(x=0.35, color='#d32f2f', linestyle='--', linewidth=1.5, label="Seuil AUC = 0.35")
+        plt.axhline(y=-np.log10(0.05), color='#e65100', linestyle='--', linewidth=1.5, label='Seuil p-value')
+        plt.title("Criblage du Catalogue Radiomique : Axe Performance Diagnostic", fontsize=13, fontweight='bold', pad=15)
+        plt.xlabel("Pouvoir discriminant (AUC-ROC)", fontsize=12)
+        plt.ylabel("Significativité Statistique [-log10(p-value)]", fontsize=12)
+        plt.legend(loc='upper center', frameon=True)
+        plt.tight_layout()
+        plt.savefig('visualisation_criblage_par_auc.png', dpi=300)
+        plt.close()
+
+    # GRAPHIC 2 : FOCUS HEATMAP
+    df_top5_selected = df_selected[df_selected['target_feature'].isin(top_prioritaire)].copy()
+    df_top5_best = df_top5_selected.groupby('target_feature').head(3).copy()
+    if not df_top5_best.empty:
+        pivot_top5 = df_top5_best.pivot_table(index='source_feature', columns='target_feature', values='auc_roc', aggfunc='first')
+        pivot_top5_p = df_top5_best.pivot_table(index='source_feature', columns='target_feature', values='kruskal_p_value', aggfunc='first')
+        colonnes_top5_ordonnees = [c for c in top_prioritaire if c in pivot_top5.columns]
+        pivot_top5 = pivot_top5[colonnes_top5_ordonnees]
+        annot_top5 = pivot_top5.copy().astype(str)
+        for col in pivot_top5.columns:
+            for idx in pivot_top5.index:
+                val = pivot_top5.loc[idx, col]
+                p = pivot_top5_p.loc[idx, col]
+                annot_top5.loc[idx, col] = f"{val:.2f}{get_p_value_asterisks(p)}" if not pd.isna(val) else ""
+        plt.figure(figsize=(10, 8))
+        sns.heatmap(pivot_top5.fillna(0), annot=annot_top5, fmt="", cmap="coolwarm", center=0.5, linewidths=0.75)
+        plt.xticks(rotation=25, ha='right')
+        plt.title("Focus Benchmark : Biomarqueurs Validés (Modèle LogReg)", fontsize=13, fontweight='bold', pad=15)
+        plt.tight_layout()
+        plt.savefig('heatmap_focus_top5_logreg.png', dpi=300)
+        plt.close()
+
+    # GRAPHIC 3 : HEATMAP EXHAUSTIVE
+    df_exhaustif_best = df_selected.groupby('target_feature').head(3).copy()
+    if not df_exhaustif_best.empty:
+        df_exhaustif_best['valeur_affichage'] = df_exhaustif_best['auc_discriminative_strength'].fillna(df_exhaustif_best['spearman_correlation'].abs())
+        pivot_all = df_exhaustif_best.pivot_table(index='source_feature', columns='target_feature', values='valeur_affichage', aggfunc='first')
+        pivot_all_p = df_exhaustif_best.pivot_table(index='source_feature', columns='target_feature', values='kruskal_p_value', aggfunc='first')
+        ordre_affichage_final = [c for c in top_prioritaire if c in liste_complete_clinique] + [c for c in liste_complete_clinique if c not in top_prioritaire]
+        pivot_all = pivot_all.reindex(columns=ordre_affichage_final)
+        annot_all = pd.DataFrame("", index=pivot_all.index, columns=pivot_all.columns)
+        for col in pivot_all.columns:
+            for idx in pivot_all.index:
+                if col in pivot_all.columns and idx in pivot_all.index:
+                    val = pivot_all.loc[idx, col]
+                    p = pivot_all_p.loc[idx, col] if pivot_all_p is not None else np.nan
+                    if not pd.isna(val):
+                        matching_rows = df_exhaustif_best[(df_exhaustif_best['source_feature']==idx) & (df_exhaustif_best['target_feature']==col)]
+                        if not matching_rows.empty:
+                            if col in ['Size_mm', 'Shape']:
+                                annot_all.loc[idx, col] = f"{matching_rows['spearman_correlation'].values[0]:.2f}{get_p_value_asterisks(p)}"
+                            else:
+                                annot_all.loc[idx, col] = f"{matching_rows['auc_roc'].values[0]:.2f}{get_p_value_asterisks(p)}"
+        plt.figure(figsize=(max(12, len(ordre_affichage_final)*1.3), max(9, len(pivot_all)*0.38)))
+        sns.heatmap(pivot_all.fillna(0.5), annot=annot_all, fmt="", cmap="coolwarm", center=0.5, linewidths=0.5)
+        plt.title("Cartographie Épurée du Benchmark Radiomique", fontsize=14, fontweight='bold', pad=20)
+        plt.xticks(rotation=35, ha='right')
+        plt.tight_layout()
+        plt.savefig('heatmap_toutes_variables_cliniques.png', dpi=300)
+        plt.close()
+
 
 def main():
-    # 1. Détection automatique des fichiers
     try:
         flattened_path = find_file('global_excel_resampled_normalized_flattened_deltas.csv')
         relectures_path = find_file('Relectures_imageries(Feuil1).csv')
@@ -39,148 +152,100 @@ def main():
         print(e)
         return
 
-    print(f"[OK] Fichier radiomique détecté : {flattened_path}")
-    print(f"[OK] Fichier clinique détecté   : {relectures_path}\n")
-    
-    print("1. Chargement du fichier radiomique...")
-    df_radio = pd.read_csv(flattened_path, sep=';', low_memory=False)
-    df_radio.columns = df_radio.columns.str.strip()
-    
-    if 'patient_num' not in df_radio.columns:
-        raise ValueError("La colonne 'patient_num' est introuvable dans le fichier radiomique.")
-    df_radio = df_radio.set_index('patient_num')
-    df_radio = df_radio[~df_radio.index.duplicated(keep='first')]
+    # 1. Chargement et nettoyage des fichiers sources
+    df_radio_raw = pd.read_csv(flattened_path, sep=';', low_memory=False)
+    df_radio_raw.columns = df_radio_raw.columns.str.strip()
+    df_radio_raw = df_radio_raw.set_index('patient_num')
+    df_radio_raw = df_radio_raw[~df_radio_raw.index.duplicated(keep='first')]
 
-    print("2. Chargement du fichier clinique...")
     df_clinique_raw = pd.read_csv(relectures_path, sep=';')
     df_clinique_raw.columns = df_clinique_raw.columns.str.strip()
+
+    exclure_cles = ['Patient_number', 'id', 'patient_num', 'patient_id', 'Type_tumeur', 'T1_signal_intensity', 'T2_signal_intensity']
+    cols_cliniques = [c for c in df_clinique_raw.columns if c not in exclure_cles]
     
-    if 'Patient_number' not in df_clinique_raw.columns:
-        raise ValueError("La colonne 'Patient_number' est introuvable dans le fichier Relectures.")
-        
-    # Liste des cibles cliniques à analyser
-    cols_cliniques = [
-        'Size_mm', 'Shape', 'nonrim_APHE', 'Nonperiph_washout', 
-        'Necrosis', 'APHE_heterogeneous', 'Late_enhancement', 
-        'Satellite_nodule', 'Portal_thrombosis'
-    ]
-    
-    # Conversion numérique forcée des cibles cliniques
     for col in cols_cliniques:
-        if col in df_clinique_raw.columns:
-            df_clinique_raw[col] = pd.to_numeric(df_clinique_raw[col], errors='coerce').fillna(0)
+        df_clinique_raw[col] = pd.to_numeric(df_clinique_raw[col], errors='coerce').fillna(0)
 
-    df_clinique = df_clinique_raw[['Patient_number'] + [c for c in cols_cliniques if c in df_clinique_raw.columns]].set_index('Patient_number')
-    df_clinique = df_clinique[~df_clinique.index.duplicated(keep='first')]
+    df_clinique_raw = df_clinique_raw[['Patient_number'] + cols_cliniques].set_index('Patient_number')
+    df_clinique_raw = df_clinique_raw[~df_clinique_raw.index.duplicated(keep='first')]
 
-    # 3. Alignement des patients (Intersection stricte)
-    common_patients = df_radio.index.intersection(df_clinique.index)
-    print(f"-> Patients correspondants trouvés : {len(common_patients)}")
-    
-    if len(common_patients) == 0:
-        print("[ATTENTION] Aucun patient en commun trouvé. Vérifie les colonnes d'identifiants.")
-        return
-        
-    df_radio = df_radio.loc[common_patients]
-    df_clinique = df_clinique.loc[common_patients]
-
-    # Isoler les colonnes numériques radiomiques (Deltas inclus)
+    # 2. Alignement strict des patients
+    common_patients = df_radio_raw.index.intersection(df_clinique_raw.index)
+    df_radio = df_radio_raw.loc[common_patients]
+    df_clinique = df_clinique_raw.loc[common_patients]
     radio_numeric_cols = df_radio.select_dtypes(include=[np.number]).columns.tolist()
     if 'id' in radio_numeric_cols: radio_numeric_cols.remove('id')
 
-    # 4. Calculs Statistiques
-    print("\nCalcul des statistiques (Spearman, Kruskal-Wallis, AUC-ROC)...")
+    print("1. Calculs statistiques et construction des matrices...")
     records = []
     
+    # Création de la structure de stockage pour la matrice de synthèse demandée
+    # Lignes = Clinique, Colonnes = Radiomique
+    matrice_synthese = pd.DataFrame(index=cols_cliniques, columns=radio_numeric_cols)
+
     for src_col in radio_numeric_cols:
         x = df_radio[src_col]
-        if x.nunique() <= 1:
-            continue
+        if x.nunique() <= 1: continue
             
         for tgt_col in df_clinique.columns:
             y = df_clinique[tgt_col]
             
-            # --- A. Corrélation de Spearman ---
             spearman_corr = x.corr(y, method='spearman')
-            
-            # --- B. Test de Kruskal-Wallis ---
             groups = [x[y == val].values for val in y.unique() if len(x[y == val]) > 0]
-            if len(groups) > 1:
-                try:
-                    _, kruskal_p = kruskal(*groups)
-                except Exception:
-                    kruskal_p = np.nan
-            else:
-                kruskal_p = np.nan
+            kruskal_p = kruskal(*groups)[1] if len(groups) > 1 else np.nan
                 
-            # --- C. Analyse ROC (AUC) ---
-            if y.nunique() == 2 and set(y.unique()).issubset({0, 1}) and len(np.unique(y)) == 2:
+            is_binary = (y.nunique() == 2 and set(y.unique()).issubset({0, 1}))
+            if is_binary:
                 try:
-                    x_clean = x.fillna(x.mean())
-                    auc_val = roc_auc_score(y, x_clean)
+                    auc_val = roc_auc_score(y, x.fillna(x.mean()))
                     abs_auc_effect = abs(auc_val - 0.5) + 0.5
                 except Exception:
-                    auc_val = np.nan
-                    abs_auc_effect = np.nan
+                    auc_val, abs_auc_effect = np.nan, np.nan
             else:
-                auc_val = np.nan
-                abs_auc_effect = np.nan
+                auc_val, abs_auc_effect = np.nan, np.nan
 
             if not np.isnan(spearman_corr):
                 records.append({
-                    'source_feature': src_col,
-                    'target_feature': tgt_col,
+                    'source_feature': src_col, 'target_feature': tgt_col,
                     'spearman_correlation': float(spearman_corr),
-                    'abs_spearman': abs(float(spearman_corr)),
-                    'kruskal_p_value': float(kruskal_p) if not np.isnan(kruskal_p) else None,
-                    'auc_roc': float(auc_val) if not np.isnan(auc_val) else None,
-                    'auc_discriminative_strength': float(abs_auc_effect) if not np.isnan(abs_auc_effect) else None
+                    'kruskal_p_value': float(kruskal_p) if not np.isnan(kruskal_p) else np.nan,
+                    'auc_roc': float(auc_val) if not np.isnan(auc_val) else np.nan,
+                    'auc_discriminative_strength': float(abs_auc_effect) if not np.isnan(abs_auc_effect) else np.nan
                 })
+                
+                # Remplissage de la cellule de synthèse demandée par l'utilisateur
+                p_str = f"{kruskal_p:.4f}" if not np.isnan(kruskal_p) else "NaN"
+                if is_binary and not np.isnan(auc_val):
+                    matrice_synthese.loc[tgt_col, src_col] = f"AUC={auc_val:.2f} | p={p_str}"
+                else:
+                    matrice_synthese.loc[tgt_col, src_col] = f"rs={spearman_corr:.2f} | p={p_str}"
 
-    # Tri global principal par la valeur absolue de Spearman
-    records.sort(key=lambda x: x['abs_spearman'], reverse=True)
-    df_results = pd.DataFrame(records)
+    df_all = pd.DataFrame(records)
 
-    cols_order = [
-        'source_feature', 'target_feature', 'spearman_correlation', 
-        'kruskal_p_value', 'auc_roc', 'auc_discriminative_strength'
-    ]
-    df_results = df_results[cols_order]
+    # 3. Sauvegarde de la matrice de synthèse statistique demandée
+    os.makedirs('data', exist_ok=True)
+    matrice_synthese.to_csv('data/matrice_synthese_statistiques.csv', sep=';')
+    print("[OK] Matrice de synthèse enregistrée (Lignes=Clinique, Cols=Radio) : data/matrice_synthese_statistiques.csv")
 
-    # 5. Sauvegarde
-    output_path = 'analyses_avancees_deltas_relectures.csv'
-    df_results.to_csv(output_path, index=False, sep=';')
-    print(f"[Succès] Matrice statistique sauvegardée dans : {output_path}")
+    # 4. EXPORTATION DE LA MATRICE PATIENTS (Pour votre future Régression)
+    # On fusionne la clinique et la radiomique sur le même index 'patient_num'
+    matrice_regression_patients = pd.concat([df_clinique, df_radio[radio_numeric_cols]], axis=1)
+    matrice_regression_patients.to_csv('data/matrice_patients_pour_regression.csv', sep=';', index_label='patient_num')
+    print("[OK] Base Patients enregistrée pour Régression                  : data/matrice_patients_pour_regression.csv")
 
-    # 6. Affichage du TOP 15 Global
-    print("\n" + "="*85)
-    print("TOP 15 DES VARIABLES SELON LEUR FORCE DE CORRÉLATION (SPEARMAN)")
-    print("="*85)
-    print(df_results.head(15).to_string(index=False, formatters={
-        'spearman_correlation': '{:,.4f}'.format,
-        'kruskal_p_value': '{:,.4e}'.format,
-        'auc_roc': '{:,.4f}'.format,
-        'auc_discriminative_strength': '{:,.4f}'.format
-    }))
-
-    # 7. Zoom ciblé sur le comportement des DELTAS et des PHASES
-    print("\n" + "="*85)
-    print("ZOOM STATISTIQUE SUR LES DELTAS CINÉTIQUES ET LES PHASES TEMPORELLES")
-    print("="*85)
-    df_deltas = df_results[df_results['source_feature'].str.contains('delta|_ART|_PORT|_NAT', case=False, na=False)]
+    # 5. Filtrage d'excellence pour les graphiques
+    filtre_taille = (df_all['target_feature'] == 'Size_mm') & (df_all['spearman_correlation'].abs() >= 0.80) & (df_all['kruskal_p_value'] < 0.05)
+    filtre_binaire = (df_all['target_feature'] != 'Size_mm') & (~df_all['auc_discriminative_strength'].isna()) & (df_all['auc_discriminative_strength'] >= 0.65) & (df_all['kruskal_p_value'] < 0.05)
+    filtre_multiclasse = (df_all['target_feature'] != 'Size_mm') & (df_all['auc_discriminative_strength'].isna()) & (df_all['spearman_correlation'].abs() >= 0.60) & (df_all['kruskal_p_value'] < 0.05)
     
-    # Pour le zoom cinétique, on trie par p-value de Kruskal croissante (plus petit = plus significatif)
-    df_deltas_sorted = df_deltas.sort_value(by='kruskal_p_value', ascending=True)
+    df_selected = df_all[filtre_taille | filtre_binaire | filtre_multiclasse].copy()
+    df_selected['tri_force'] = df_selected['auc_discriminative_strength'].fillna(df_selected['spearman_correlation'].abs())
+    df_selected = df_selected.sort_values(by=['target_feature', 'tri_force'], ascending=[True, False])
+    df_selected.to_csv('data/features_selectionnees_benchmark.csv', index=False, sep=';')
     
-    if not df_deltas_sorted.empty:
-        print(df_deltas_sorted.head(20).to_string(index=False, formatters={
-            'spearman_correlation': '{:,.4f}'.format,
-            'kruskal_p_value': '{:,.4e}'.format,
-            'auc_roc': '{:,.4f}'.format,
-            'auc_discriminative_strength': '{:,.4f}'.format
-        }))
-    else:
-        print("Aucune feature contenant 'delta', '_ART', '_PORT' ou '_NAT' trouvée.")
+    generate_plots(df_all, df_selected, cols_cliniques)
+    print("\n[SUCCÈS] Script exécuté avec succès. Vos fichiers pour la régression sont prêts.")
 
 if __name__ == '__main__':
     main()
