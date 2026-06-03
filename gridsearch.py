@@ -11,8 +11,6 @@ from validation import *
 input_list = [
     'global_excel_resampled_normalized_flattened.csv',
     'global_excel_resampled_normalized_flattened_deltas.csv',
-    'global_normalized_flattened_uncor.csv',
-    'flattened_global_scaled.csv',
     'flatted_global_scaled_uncor.csv',
     'flatted_global_scaled_uncor_08.csv'
 ]
@@ -65,9 +63,9 @@ for input_file in input_list:
                 'Input': input_file,
                 'C': C,
                 'Accuracy': np.mean(fold_metrics['accuracy']),
-                'AUC': np.mean(fold_metrics['auc']),
+                # 'AUC': np.mean(fold_metrics['auc']),
                 'F1': np.mean(fold_metrics['f1']),
-                'MCC': np.mean(fold_metrics['mcc'])
+                # 'MCC': np.mean(fold_metrics['mcc'])
             })
         except Exception as e:
             print(f"Erreur lors de l'évaluation de {input_file} avec C={C} : {e}")
@@ -78,8 +76,10 @@ for input_file in input_list:
 df_results = pd.DataFrame(results)
 
 if not df_results.empty:
-    metrics = ['Accuracy', 'AUC', 'F1', 'MCC']
-    fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+    # metrics = ['Accuracy', 'AUC', 'F1', 'MCC']
+    metrics = ['Accuracy', 'F1']
+    # fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+    fig, axes = plt.subplots(1, 2, figsize=(16, 6))
     axes = axes.flatten()
 
     for i, metric in enumerate(metrics):
