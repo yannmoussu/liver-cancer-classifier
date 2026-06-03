@@ -11,15 +11,24 @@ from validation import *
 input_list = [
     'global_excel_resampled_normalized_flattened.csv',
     'global_excel_resampled_normalized_flattened_deltas.csv',
+    'flattened_global_scaled.csv',
     'flatted_global_scaled_uncor.csv',
     'flatted_global_scaled_uncor_08.csv'
+]
+
+input_titles = [
+    'Manually Normalized Flattened',
+    'Manually Normalized Flattened with Deltas',
+    'Normalized Flattened',
+    'Normalized Flattened Uncorrelated (0.9)',
+    'Normalized Flattened Uncorrelated (0.8)'
 ]
 
 C_list = [5, 4, 3, 2, 1, 0.5, 0.3, 0.1]
 
 results = []
 
-for input_file in input_list:
+for input_file, input_title in zip(input_list, input_titles):
     for C in C_list:
         try:
             df = pd.read_csv("./data/" + input_file, sep=";")
@@ -60,7 +69,7 @@ for input_file in input_list:
             )
             
             results.append({
-                'Input': input_file,
+                'Input': input_title,
                 'C': C,
                 'Accuracy': np.mean(fold_metrics['accuracy']),
                 # 'AUC': np.mean(fold_metrics['auc']),
@@ -85,9 +94,9 @@ if not df_results.empty:
     for i, metric in enumerate(metrics):
         # Pivot des données pour seaborn (Lignes: Fichiers, Colonnes: C, Valeurs: Métrique)
         pivot_table = df_results.pivot(index='Input', columns='C', values=metric)
-        sns.heatmap(pivot_table, annot=True, cmap='viridis', ax=axes[i], fmt='.3f')
+        sns.heatmap(pivot_table, annot=True, cmap='BuPu', ax=axes[i], fmt='.3f', square=True)
         axes[i].set_title(f'Heatmap - {metric}', fontweight='bold')
-        axes[i].set_ylabel('Fichier Input')
+        axes[i].set_ylabel('')
         axes[i].set_xlabel('Paramètre C (Régularisation)')
 
     plt.suptitle("Comparaison des métriques (Moyennes k-fold) selon l'Input et C", fontsize=16, fontweight='bold')
