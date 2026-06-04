@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Modele de classification des tumeurs basé sur les evaluations radiologues.
-Objectif: classification dure (logistic regression) entre CHC (type 1) et CCk (type 2)
+Objectif: classification dure (logistic regression) entre CCk (type 1) et CHC (type 2)
 à partir du fichier Relectures_imageries(Feuil1).csv.
 """
 
@@ -26,8 +26,8 @@ def preprocess(df):
     """Select features and target, handle missing values."""
     # Keep only CHC (1) and CK (2)
     df = df[df['Type_tumeur'].isin([1, 2])].copy()
-    # Define target
-    y = df['Type_tumeur'].map({1: 0, 2: 1})  # 0 for CHC, 1 for CCk
+    # MODIFICATION : Inversion de la cible (0 pour CCk, 1 pour CHC)
+    y = df['Type_tumeur'].map({1: 0, 2: 1})  # 0 for CCk, 1 for CHC
     # Feature columns (exclude patient number and target)
     feature_cols = [col for col in df.columns if col not in ['Type_tumeur', 'Patient_number']]
     X = df[feature_cols]
@@ -70,9 +70,44 @@ def main():
     print("\n=== Logistic Regression Results ===")
     print("Accuracy:", logreg.score(X_test_scaled, y_test))
     print("\nClassification Report:")
-    print(classification_report(y_test, y_pred, target_names=['CHC', 'CCk']))
+    # MODIFICATION : Changement de l'ordre des labels pour le rapport
+    print(classification_report(y_test, y_pred, target_names=['CCk', 'CHC']))
     print("\nConfusion Matrix:")
-    print(confusion_matrix(y_test, y_pred))
+    cm = confusion_matrix(y_test, y_pred)
+    print(cm)
+
+    # === AJOUT : Génération de la Heatmap avec chiffres GROS et EN GRAS ===
+    plt.figure(figsize=(6, 5))
+    
+    # 1. On force temporairement TOUTES les polices du graphique à être grosses et en gras
+    with plt.rc_context({
+        'font.weight': 'bold', 
+        'font.size': 16,          # Taille de base globale
+        'axes.labelweight': 'bold'
+    }):
+        
+        ax = sns.heatmap(
+            cm, 
+            annot=True, 
+            fmt='d', 
+            cmap='Blues', 
+            xticklabels=['CCk', 'CHC'], # MODIFICATION : Inversion des axes
+            yticklabels=['CCk', 'CHC'], # MODIFICATION : Inversion des axes
+            cbar=False, # Optionnel: enlève la barre de couleur à droite pour gagner de la place
+            annot_kws={"size": 48, "weight": "bold"} # Force la taille spécifique des annotations internes
+        )
+        
+        # 2. MÉTHODE DE SECOURS RADICALE : On boucle sur chaque texte écrit dans la heatmap
+        # pour écraser toute autre configuration et forcer le changement.
+        for text in ax.texts:
+            text.set_size(18)          
+            text.set_weight('bold')    
+            text.set_color('black')    
+
+    plt.title('Matrice de Confusion', fontsize=14, fontweight='bold', pad=15)
+    plt.ylabel('Vérité Terrain', fontsize=12, fontweight='bold')
+    plt.xlabel('Prédiction Modèle', fontsize=12, fontweight='bold')
+    plt.tight_layout()
 
     # Feature importance (coefficients)
     coefs = logreg.coef_[0]
@@ -102,11 +137,11 @@ def main():
     pca_df = pd.DataFrame({
         'PC1': X_pca[:, 0],
         'PC2': X_pca[:, 1],
-        'type': y_train.map({0: 'CHC', 1: 'CCk'})
+        'type': y_train.map({0: 'CCk', 1: 'CHC'}) # MODIFICATION : Inversion map PCA
     })
     plt.figure(figsize=(8, 6))
     sns.scatterplot(data=pca_df, x='PC1', y='PC2', hue='type', palette='Set1', s=60, alpha=0.7)
-    plt.title('PCA of Training Set (CHC vs CCk)')
+    plt.title('PCA of Training Set (CCk vs CHC)')
     plt.xlabel(f'PC1 ({pca.explained_variance_ratio_[0]:.2%} variance)')
     plt.ylabel(f'PC2 ({pca.explained_variance_ratio_[1]:.2%} variance)')
     plt.tight_layout()
@@ -129,7 +164,7 @@ def main():
     plt.figure(figsize=(8, 6))
     plt.contourf(xx, yy, probs, levels=25, cmap='RdBu', alpha=0.3)
     sns.scatterplot(data=pca_df, x='PC1', y='PC2', hue='type', palette='Set1', s=60, alpha=0.8, edgecolor='k')
-    plt.title('PCA with Logistic Regression Decision Boundary (CHC vs CCk)')
+    plt.title('PCA with Logistic Regression Decision Boundary (CCk vs CHC)')
     plt.xlabel(f'PC1 ({pca.explained_variance_ratio_[0]:.2%} variance)')
     plt.ylabel(f'PC2 ({pca.explained_variance_ratio_[1]:.2%} variance)')
     plt.tight_layout()
@@ -181,7 +216,7 @@ def main():
         y,
         df,  # filtered dataframe (only CHC and CCk)
         ['Patient_number'],  # group by patient to avoid intra-patient leakage
-        ['CHC', 'CCk']
+        ['CCk', 'CHC'] # MODIFICATION : Inversion de l'ordre d'évaluation K-Fold
     )
 
     # Optionally, save model and scaler for later use on mixte tumors
