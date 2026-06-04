@@ -35,22 +35,58 @@ def evaluer_modele_kfold(
         groups = data[col_group].to_numpy()
         
 
-    elements_stratification = [pd.Series(y).astype(str)]
+    # On s'assure que y est un tableau numpy pour éviter les décalages d'index avec pd.Series
+    y_array = np.array(y)
+    
+    # Remplacement des valeurs par le nom des classes pour une légende plus parlante
+    def get_class_name(val):
+        try:
+            return noms_classes[int(float(val))]
+        except:
+            return str(val)
+            
+    y_str = pd.Series(y_array, name="Maladie").map(get_class_name)
+    elements_stratification = [y_str]
     description_equilibrage = "Maladie"
     
     if col_sexe is not None:
         sexe_vals = data[col_sexe].to_numpy()
-        elements_stratification.append(pd.Series(sexe_vals).astype(str))
+        
+        def map_sexe(x):
+            try:
+                val = float(x)
+                if val == 1.0: return "H"
+                if val == 0.0: return "F"
+                return "H" if val > 0 else "F"
+            except:
+                return str(x)
+                
+        sexe_str = pd.Series(sexe_vals, name="Sexe").map(map_sexe)
+        elements_stratification.append(sexe_str)
         description_equilibrage += f" + Sexe ('{col_sexe}')"
         
     if col_age is not None:
         age_vals = data[col_age].to_numpy()
-        tranches_age = pd.cut(age_vals, bins=[0, 50, 70, 120], labels=['<50', '50-70', '>70']).astype(str)
-        elements_stratification.append(pd.Series(tranches_age))
+        
+        # Si la colonne est standardisée (StandardScaler), les valeurs max sont très petites (ex: < 5)
+        if np.nanmax(age_vals) < 10:
+            # On utilise les écarts-types comme approximations de vos tranches habituelles
+            bins = [-np.inf, -0.5, 0.5, np.inf]
+            labels = ['<50', '50-70', '>70']
+        else:
+            bins = [0, 50, 70, 120]
+            labels = ['<50', '50-70', '>70']
+            
+        tranches_age = pd.cut(age_vals, bins=bins, labels=labels)
+        # On force la conversion en string et on gère les NaN pour éviter les conflits str/float dans np.unique
+        tranches_age = [str(x) if pd.notna(x) else "Inconnu" for x in tranches_age]
+        
+        elements_stratification.append(pd.Series(tranches_age, name="Âge"))
         description_equilibrage += f" + Âge ('{col_age}')"
     
-    df_temp = pd.concat(elements_stratification, axis=1).astype(str)
-    strat_array = df_temp.apply(lambda row: "_".join(row), axis=1).to_numpy()
+    df_temp = pd.concat(elements_stratification, axis=1)
+    # On utilise un espace pour un affichage propre : "CCK H 50-70"
+    strat_array = df_temp.apply(lambda row: " ".join([str(x) for x in row]), axis=1).to_numpy()
     
     print(f"⚖️ Équilibrage automatique appliqué sur : {description_equilibrage}")
     # =========================================================================
@@ -64,9 +100,11 @@ def evaluer_modele_kfold(
 
     for fold, (train_idx, test_idx) in enumerate(sgkf.split(X, y=strat_array, groups=groups), 1):
         
-        valeurs_uniques, comptes = np.unique(strat_array[test_idx], return_counts=True)
-        for val, count in zip(valeurs_uniques, comptes):
-            repartition_data.append({'Fold': f"Fold {fold}", 'Sous-groupe': val, 'Patients': count})
+        # On calcule les répartitions pour chaque variable stratifiée séparément
+        for col in df_temp.columns:
+            valeurs_uniques, comptes = np.unique(df_temp[col].iloc[test_idx], return_counts=True)
+            for val, count in zip(valeurs_uniques, comptes):
+                repartition_data.append({'Fold': f"Fold {fold}", 'Variable': col, 'Classe': val, 'Patients': count})
         
         X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
         y_train, y_test = y[train_idx], y[test_idx] 
@@ -83,7 +121,7 @@ def evaluer_modele_kfold(
         
         acc = accuracy_score(y_test, y_pred)
         auc = roc_auc_score(y_test, y_prob)
-        f1 = f1_score(y_test, y_pred)
+        f1 = f1_score(y_test, y_pred, average="macro")
         mcc = matthews_corrcoef(y_test, y_pred)
         
         fold_metrics['accuracy'].append(acc)
@@ -103,26 +141,61 @@ def evaluer_modele_kfold(
     print("="*50)
     
     df_repartition = pd.DataFrame(repartition_data)
-    df_pivot = df_repartition.pivot(index='Fold', columns='Sous-groupe', values='Patients').fillna(0)
-    df_pourcentages = df_pivot.div(df_pivot.sum(axis=1), axis=0) * 100
+    variables = df_temp.columns.tolist()
+    n_vars = len(variables)
 
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    # Création des sous-graphiques : un par variable + 1 pour la matrice de confusion
+    fig, axes = plt.subplots(1, n_vars + 1, figsize=(4 * (n_vars + 1), 5))
+    
+    # Sécurisation si jamais 1 seule variable
+    if n_vars + 1 == 1:
+        axes = [axes]
 
-    df_pourcentages.plot(kind='bar', stacked=True, ax=axes[0], colormap='tab20', edgecolor='white')
-    axes[0].set_title(f"Composition des Folds de Test\n({description_equilibrage})", fontsize=11, fontweight='bold')
-    axes[0].set_ylabel("Proportion (%)")
-    axes[0].set_xlabel("")
-    axes[0].legend(title="Sous-groupes", bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='small')
-    axes[0].tick_params(axis='x', rotation=0)
+    # Définition de palettes de couleurs séquentielles (ton sur ton) pour chaque graphe
+    base_colors = ['Blues', 'Oranges', 'Greens', 'Purples', 'Reds']
 
+    for i, var in enumerate(variables):
+        df_var = df_repartition[df_repartition['Variable'] == var]
+        df_pivot = df_var.pivot(index='Fold', columns='Classe', values='Patients').fillna(0)
+        df_pourcentages = df_pivot.div(df_pivot.sum(axis=1), axis=0) * 100
+        
+        # On génère des couleurs plus intenses en évitant les premières (qui sont presque blanches)
+        n_classes = len(df_pourcentages.columns)
+        # On demande 2 couleurs supplémentaires et on sélectionne les plus intenses à la fin
+        palette = sns.color_palette(base_colors[i % len(base_colors)], n_colors=n_classes + 2)[2:]
+        
+        df_pourcentages.plot(kind='bar', stacked=True, ax=axes[i], color=palette, edgecolor='white')
+        axes[i].set_title(f"Proportions - {var}", fontsize=11, fontweight='bold')
+        if i == 0:
+            axes[i].set_ylabel("Proportion (%)")
+        else:
+            axes[i].set_ylabel("")
+        axes[i].set_xlabel("")
+        axes[i].legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='small')
+        axes[i].tick_params(axis='x', rotation=45)
+
+    ax_cm = axes[-1]
     cm_total = confusion_matrix(y_vrais_total, y_pred_total)
-    sns.heatmap(cm_total, annot=True, fmt='d', cmap='Blues', ax=axes[1], 
+    sns.heatmap(cm_total, annot=True, fmt='d', cmap='Blues', ax=ax_cm, 
                 xticklabels=noms_classes, yticklabels=noms_classes)
-    axes[1].set_title(f"Matrice de Confusion Cumulée ({n_splits} Folds)", fontsize=11, fontweight='bold')
-    axes[1].set_ylabel('Vérité Terrain')
-    axes[1].set_xlabel('Prédiction Modèle')
+    ax_cm.set_title(f"Confusion Cumulée ({n_splits} Folds)", fontsize=11, fontweight='bold')
+    ax_cm.set_ylabel('Vérité Terrain')
+    ax_cm.set_xlabel('Prédiction Modèle')
     
     plt.tight_layout()
+    
+    # --- SAUVEGARDE DU GRAPHIQUE ---
+    import os
+    from datetime import datetime
+    os.makedirs(os.path.join("plots", "regression"), exist_ok=True)
+    model_name = type(modele).__name__
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = os.path.join("plots", "regression", f"validation_{model_name}_{timestamp}.png")
+    
+    plt.savefig(filename, dpi=300, bbox_inches='tight')
+    print(f"\n📈 Graphique sauvegardé sous : {filename}")
+    # -------------------------------
+    
     if show_plots:
         plt.show()
     else:
