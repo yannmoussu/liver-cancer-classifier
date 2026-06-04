@@ -29,7 +29,6 @@ def evaluer_modele_kfold(
     np.random.seed(random_seed)
     
     if isinstance(col_group, list):
-
         groups = data[col_group].astype(str).agg('_'.join, axis=1).to_numpy()
     else:
         groups = data[col_group].to_numpy()
@@ -96,16 +95,7 @@ def evaluer_modele_kfold(
     fold_metrics = {'accuracy': [], 'auc': [], 'f1': [], 'mcc': []}
     y_vrais_total, y_pred_total, y_prob_total = [], [], []
     
-    repartition_data = []
-
     for fold, (train_idx, test_idx) in enumerate(sgkf.split(X, y=strat_array, groups=groups), 1):
-        
-        # On calcule les répartitions pour chaque variable stratifiée séparément
-        for col in df_temp.columns:
-            valeurs_uniques, comptes = np.unique(df_temp[col].iloc[test_idx], return_counts=True)
-            for val, count in zip(valeurs_uniques, comptes):
-                repartition_data.append({'Fold': f"Fold {fold}", 'Variable': col, 'Classe': val, 'Patients': count})
-        
         X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
         y_train, y_test = y[train_idx], y[test_idx] 
         
@@ -140,47 +130,31 @@ def evaluer_modele_kfold(
     print(f"MCC      : {np.mean(fold_metrics['mcc']):.3f} (± {np.std(fold_metrics['mcc']):.3f})")
     print("="*50)
     
-    df_repartition = pd.DataFrame(repartition_data)
-    variables = df_temp.columns.tolist()
-    n_vars = len(variables)
-
-    # Création des sous-graphiques : un par variable + 1 pour la matrice de confusion
-    fig, axes = plt.subplots(1, n_vars + 1, figsize=(4 * (n_vars + 1), 5))
-    
-    # Sécurisation si jamais 1 seule variable
-    if n_vars + 1 == 1:
-        axes = [axes]
-
-    # Définition de palettes de couleurs séquentielles (ton sur ton) pour chaque graphe
-    base_colors = ['Blues', 'Oranges', 'Greens', 'Purples', 'Reds']
-
-    for i, var in enumerate(variables):
-        df_var = df_repartition[df_repartition['Variable'] == var]
-        df_pivot = df_var.pivot(index='Fold', columns='Classe', values='Patients').fillna(0)
-        df_pourcentages = df_pivot.div(df_pivot.sum(axis=1), axis=0) * 100
-        
-        # On génère des couleurs plus intenses en évitant les premières (qui sont presque blanches)
-        n_classes = len(df_pourcentages.columns)
-        # On demande 2 couleurs supplémentaires et on sélectionne les plus intenses à la fin
-        palette = sns.color_palette(base_colors[i % len(base_colors)], n_colors=n_classes + 2)[2:]
-        
-        df_pourcentages.plot(kind='bar', stacked=True, ax=axes[i], color=palette, edgecolor='white')
-        axes[i].set_title(f"Proportions - {var}", fontsize=11, fontweight='bold')
-        if i == 0:
-            axes[i].set_ylabel("Proportion (%)")
-        else:
-            axes[i].set_ylabel("")
-        axes[i].set_xlabel("")
-        axes[i].legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='small')
-        axes[i].tick_params(axis='x', rotation=45)
-
-    ax_cm = axes[-1]
+    # --- CRÉATION DE LA FIGURE UNIQUEMENT AVEC LA MATRICE DE CONFUSION ---
+    plt.figure(figsize=(6, 5))
     cm_total = confusion_matrix(y_vrais_total, y_pred_total)
-    sns.heatmap(cm_total, annot=True, fmt='d', cmap='Blues', ax=ax_cm, 
-                xticklabels=noms_classes, yticklabels=noms_classes)
-    ax_cm.set_title(f"Confusion Cumulée ({n_splits} Folds)", fontsize=11, fontweight='bold')
-    ax_cm.set_ylabel('Vérité Terrain')
-    ax_cm.set_xlabel('Prédiction Modèle')
+    
+    # Configuration de la heatmap en taille 48 de base
+    ax_cm = sns.heatmap(
+        cm_total, 
+        annot=True, 
+        fmt='d', 
+        cmap='Blues', 
+        xticklabels=noms_classes, 
+        yticklabels=noms_classes,
+        cbar=False,
+        annot_kws={"size": 28, "weight": "bold"}
+    )
+    
+    # Modification de la taille et de la graisse SANS écraser le choix automatique de couleur de Seaborn
+    for text in ax_cm.texts:
+        text.set_size(28)          
+        text.set_weight('bold')    
+        
+    plt.title(f"Confusion Cumulée ({n_splits} Folds)", fontsize=16, fontweight='bold', pad=15)
+    plt.ylabel('Vérité Terrain', fontsize=12, fontweight='bold')
+    plt.xlabel('Prédiction Modèle', fontsize=12, fontweight='bold')
+    plt.tick_params(axis='both', which='major', labelsize=18)
     
     plt.tight_layout()
     
@@ -196,9 +170,6 @@ def evaluer_modele_kfold(
     print(f"\n📈 Graphique sauvegardé sous : {filename}")
     # -------------------------------
     
-    if show_plots:
-        plt.show()
-    else:
-        plt.close()
+    plt.show()
     
     return y_vrais_total, y_prob_total, fold_metrics
