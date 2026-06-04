@@ -4,11 +4,13 @@ from sklearn.metrics import accuracy_score, classification_report
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 
+from validation import evaluer_modele_kfold
+
 # ==========================================
 # 1. CHARGEMENT ET PRÉPARATION DES DONNÉES
 # ==========================================
 
-df = pd.read_csv("./data/flattened_global_scaled.csv", sep=";")
+df = pd.read_csv("./data/global_excel_resampled_normalized_flattened.csv", sep=";")
 
 # Suppression des lignes de la classe "Mixtes" pour passer à un problème binaire
 df = df[df["classe_name"] != "Mixtes"]
@@ -25,6 +27,7 @@ X = df[feature_cols].values
 y = df["target"].values
 
 # Découpage 80% train / 20% test avec stratification binaire
+
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.20, random_state=42, stratify=y
 )
@@ -39,7 +42,7 @@ X_train, X_test, y_train, y_test = train_test_split(
 model = LogisticRegression(
     penalty="l1",
     solver="liblinear",
-    C=0.5,
+    C=0.1,
     random_state=42,
 )
 
