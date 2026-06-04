@@ -190,7 +190,7 @@ def main():
     # 6. ENTRAÎNEMENT DE LA RÉGRESSION LOGISTIQUE LASSO (L1)
     # -------------------------------------------------------------------------
     print("\nEntraînement de la régression logistique pénalisée LASSO (C=0.4)...")
-    lasso_clf = LogisticRegression(penalty='l1', solver='liblinear', C=0.4, random_state=42, max_iter=2000)
+    lasso_clf = LogisticRegression(penalty='l1', solver='liblinear', C=0.5, random_state=42, max_iter=2000)
     lasso_clf.fit(X_competition_scaled, y_final)
 
     y_pred = lasso_clf.predict(X_competition_scaled)
