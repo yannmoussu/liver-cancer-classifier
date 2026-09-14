@@ -23,7 +23,7 @@ seul module partagé entre eux (évaluation par k-fold, tracé des résultats).
 
 ## Principaux fichiers
 
-- `modeling/poids_optimisés_lasso.py` : Script principal pour l'optimisation des poids dans un modèle LASSO en combinant pseudo-features et features globales.
+- `modeling/poids_pseudo_radiologue.py` : Méta-classifieur à base de pseudo-features, combinant pseudo-features et features globales en LASSO (`--weights {optimises,correlation} --mode {seuls,lasso}`).
 - `modeling/lasso.py` : Implémentation de base de la régression LASSO.
 - `common/validation.py` : Fonctions de validation croisée et d'évaluation des modèles.
 - `feature_selection/correlation.py` : Analyse de corrélation entre features.
@@ -59,7 +59,7 @@ Les scripts peuvent être lancés directement depuis la ligne de commande,
 **depuis la racine du dépôt** (les chemins vers `data/` sont relatifs à la racine) :
 
 ```bash
-python modeling/poids_optimisés_lasso.py
+python modeling/poids_pseudo_radiologue.py
 ```
 
 Certains scripts peuvent nécessiter des arguments ou des chemins de fichiers spécifiques ; consultez l'en-tête de chaque script pour plus de détails.
