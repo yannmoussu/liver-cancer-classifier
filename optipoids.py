@@ -55,7 +55,7 @@ for variable_y, features_x in correspondances.items():
     
     # Classification (Régression Logistique)
     if len(valeurs_uniques) <= 5:
-        modele = LogisticRegression(max_iter=1000)
+        modele = LogisticRegression(max_iter=1000, penalty="l2")
         modele.fit(X, Y)
         predictions = modele.predict(X)
         
