@@ -93,4 +93,4 @@ df_wide = df_wide[metadata_ordonnee + cols_features]
 # 9. Sauvegarde
 output_path = 'data/multislice_aggregated_flattened.csv'
 df_wide.to_csv(output_path, sep=';', index=False)
-print(f"✅ Pipeline de prétraitement terminée. Dataframe sauvegardé sous : {output_path}")
+print(f"Pipeline de prétraitement terminée. Dataframe sauvegardé sous : {output_path}")

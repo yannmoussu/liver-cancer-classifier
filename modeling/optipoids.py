@@ -41,7 +41,7 @@ for variable_y, features_x in correspondances.items():
     data_modele = df_global[[variable_y] + features_x].dropna()
     
     if len(data_modele) < 5:
-        print(f"⚠️ {variable_y} : Pas assez de données disponibles.")
+        print(f"[!] {variable_y} : Pas assez de données disponibles.")
         continue
         
     X = data_modele[features_x]
@@ -61,7 +61,7 @@ for variable_y, features_x in correspondances.items():
         
         # Calcul et affichage immédiat de l'Accuracy
         acc = accuracy_score(Y, predictions)
-        print(f"📈 {variable_y:<22} | Modèle: Logistique | Accuracy: {acc * 100:.2f}%")
+        print(f"{variable_y:<22} | Modèle: Logistique | Accuracy: {acc * 100:.2f}%")
         
         ligne_actuelle["Type_Modele"] = "Logistique"
         ligne_actuelle["Intercept_Constante"] = round(modele.intercept_[0], 4)
@@ -75,7 +75,7 @@ for variable_y, features_x in correspondances.items():
         
         # Calcul et affichage immédiat de l'erreur des moindres carrés (MSE)
         mse = mean_squared_error(Y, predictions)
-        print(f"📉 {variable_y:<22} | Modèle: Linéaire   | Erreur Moindres Carrés (MSE): {mse:.4f}")
+        print(f"{variable_y:<22} | Modèle: Linéaire   | Erreur Moindres Carrés (MSE): {mse:.4f}")
         
         ligne_actuelle["Type_Modele"] = "Linéaire"
         ligne_actuelle["Intercept_Constante"] = round(modele.intercept_, 4)

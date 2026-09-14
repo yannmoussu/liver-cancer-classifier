@@ -25,7 +25,7 @@ def evaluer_modele_kfold(
     random_seed=42,
     show_plots=True
 ):
-    print(f"🚀 Lancement du Stratified GROUP K-Fold ({n_splits} Folds)")
+    print(f"Lancement du Stratified GROUP K-Fold ({n_splits} Folds)")
     np.random.seed(random_seed)
     
     if isinstance(col_group, list):
@@ -87,7 +87,7 @@ def evaluer_modele_kfold(
     # On utilise un espace pour un affichage propre : "CCK H 50-70"
     strat_array = df_temp.apply(lambda row: " ".join([str(x) for x in row]), axis=1).to_numpy()
     
-    print(f"⚖️ Équilibrage automatique appliqué sur : {description_equilibrage}")
+    print(f"Équilibrage automatique appliqué sur : {description_equilibrage}")
     # =========================================================================
     
     sgkf = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=random_seed)
@@ -122,7 +122,7 @@ def evaluer_modele_kfold(
         print(f"Fold {fold}/{n_splits} - Accuracy: {acc:.2f} | AUC: {auc:.2f} | F1: {f1:.2f} | MCC: {mcc:.2f}")
 
     print("\n" + "="*50)
-    print("🏆 BILAN DES MÉTRIQUES ESSENTIELLES (MOYENNE ± ÉCART-TYPE)")
+    print("BILAN DES MÉTRIQUES ESSENTIELLES (MOYENNE ± ÉCART-TYPE)")
     print("="*50)
     print(f"Accuracy : {np.mean(fold_metrics['accuracy']):.3f} (± {np.std(fold_metrics['accuracy']):.3f})")
     print(f"ROC AUC  : {np.mean(fold_metrics['auc']):.3f} (± {np.std(fold_metrics['auc']):.3f})")
@@ -167,7 +167,7 @@ def evaluer_modele_kfold(
     filename = os.path.join("plots", "regression", f"validation_{model_name}_{timestamp}.png")
     
     plt.savefig(filename, dpi=300, bbox_inches='tight')
-    print(f"\n📈 Graphique sauvegardé sous : {filename}")
+    print(f"\nGraphique sauvegardé sous : {filename}")
     # -------------------------------
     
     plt.show()

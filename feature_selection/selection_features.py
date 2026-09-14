@@ -32,7 +32,7 @@ def main():
     output_path = 'data/features_selectionnees_benchmark.csv'
     df_selection[['target_feature', 'source_feature', 'spearman_correlation', 'kruskal_p_value', 'auc_roc', 'auc_discriminative_strength']].to_csv(output_path, index=False, sep=';')
     
-    print(f"\n[SUCCÈS] {len(df_selection)} features correspondent à nos critères d'excellence !地方")
+    print(f"\n[SUCCÈS] {len(df_selection)} features correspondent à nos critères d'excellence !")
     print(f"La liste a été sauvegardée dans : {output_path}")
     
     # Affichage d'un aperçu par variable clinique

@@ -70,7 +70,7 @@ def main():
         X = df_model[features_x]
 
         if len(y) < 10:  # Sécurité si pas assez de patients
-            print(f"\n[⚠️] Pas assez de données pour modéliser {cible}.")
+            print(f"\n[!] Pas assez de données pour modéliser {cible}.")
             continue
 
         # 3. Standardisation des variables radiomiques (X)
@@ -94,7 +94,7 @@ def main():
             type_modele = "Linéaire (Continue)"
 
         # 5. Affichage dans la console (Équations brutes pour validation)
-        print(f"\n🔹 CRITÈRE CLINIQUE : {cible}")
+        print(f"\nCRITÈRE CLINIQUE : {cible}")
         print(f"   | Type de modèle : {type_modele}")
         print(f"   | Nb Patients    : {len(y)}")
         

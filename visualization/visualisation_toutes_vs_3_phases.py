@@ -83,7 +83,7 @@ def generate_pie_charts():
     os.makedirs(os.path.join("plots", "visualisation"), exist_ok=True)
     filename = os.path.join("plots", "visualisation", "comparaison_bases_camemberts.png")
     plt.savefig(filename, dpi=300)
-    print(f"\n✅ Graphique sauvegardé sous : {filename}")
+    print(f"\nGraphique sauvegardé sous : {filename}")
     
     # Affichage
     plt.show()

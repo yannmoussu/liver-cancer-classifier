@@ -31,7 +31,7 @@ def compute_phase_deltas(
             # On ajoute les phases 1 et 2 à la liste des purges pour éviter la multicolinéarité
             cols_to_drop.extend([col_p1, col_p2])
         else:
-            print(f"⚠️ Warning : Les colonnes pour la variable '{feature}' sont incomplètes et ont été ignorées.")
+            print(f"Warning : Les colonnes pour la variable '{feature}' sont incomplètes et ont été ignorées.")
 
     # Suppression en masse (plus performant que drop itératif)
     df_transformed.drop(columns=cols_to_drop, inplace=True, errors="ignore")
@@ -64,4 +64,4 @@ if __name__ == "__main__":
     # 4. Export
     output_filename = "data/global_excel_resampled_normalized_flattened_deltas.csv"
     df_final.to_csv(output_filename, sep=";", index=False)
-    print(f"✅ Traitement terminé. Fichier exporté : {output_filename}")
+    print(f"Traitement terminé. Fichier exporté : {output_filename}")
