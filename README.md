@@ -87,4 +87,7 @@ Yann MOUSSU, Mathéo CAHITTE, Ilias BOURHRARA, Antonin RICOCHON & Clément COURN
 
 ## Licence
 
-Ce projet est fourni à titre éducatif et de recherche.
+Le code de ce projet est distribué sous licence MIT (voir [LICENSE](LICENSE)).
+Les jeux de données du dossier `data/` sont issus d'une étude médicale réelle
+(anonymisée) et ne sont pas couverts par cette licence — leur diffusion est
+en attente d'autorisation.
