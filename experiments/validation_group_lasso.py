@@ -1,4 +1,8 @@
-from validation import evaluer_modele_kfold
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+
+from common.validation import evaluer_modele_kfold
 import pandas as pd
 import numpy as np
 import re

@@ -4,7 +4,11 @@ from sklearn.metrics import accuracy_score, classification_report
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 
-from validation import evaluer_modele_kfold
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+
+from common.validation import evaluer_modele_kfold
 
 # ==========================================
 # 1. CHARGEMENT ET PRÉPARATION DES DONNÉES

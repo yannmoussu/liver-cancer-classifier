@@ -20,7 +20,11 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import classification_report, roc_curve, auc, confusion_matrix
 from sklearn.decomposition import PCA
 import warnings
-from validation import evaluer_modele_kfold
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+
+from common.validation import evaluer_modele_kfold
 
 warnings.filterwarnings('ignore')
 
@@ -64,7 +68,7 @@ def load_specific_files():
     base_dir = "data"
     
     path_global = os.path.join(base_dir, "global_excel_resampled_normalized_flattened.csv")
-    path_parametres = os.path.join(base_dir, "poids_modeles_radiomiques.csv")
+    path_parametres = os.path.join(base_dir, "parametres_correlation.csv")
     imagerie_path = 'data/Relectures_imageries.csv'
     descriptif_path = 'data/Descriptif_patients(Sheet1).csv'
     
@@ -88,7 +92,7 @@ def main():
         return
 
     # Chemin cible pour la sauvegarde des plots demandés
-    output_plot_dir = 'plots/optimisés_lasso'
+    output_plot_dir = 'plots/pseudoradiologue_lasso'
     os.makedirs(output_plot_dir, exist_ok=True)
 
     # -------------------------------------------------------------------------
@@ -187,10 +191,10 @@ def main():
     )
 
     # -------------------------------------------------------------------------
-    # 6. ENTRAÎNEMENT DE LA RÉGRESSION LOGISTIQUE LASSO (L1)
+    # 6. ENTRAÎNEMENT DE LA RÉGRESSION LOGISTIQUE LASSO (C=0.4)
     # -------------------------------------------------------------------------
     print("\nEntraînement de la régression logistique pénalisée LASSO (C=0.4)...")
-    lasso_clf = LogisticRegression(penalty='l1', solver='liblinear', C=0.5, random_state=42, max_iter=2000)
+    lasso_clf = LogisticRegression(penalty='l1', solver='liblinear', C=0.4, random_state=42, max_iter=2000)
     lasso_clf.fit(X_competition_scaled, y_final)
 
     y_pred = lasso_clf.predict(X_competition_scaled)
@@ -204,7 +208,7 @@ def main():
     print(confusion_matrix(y_final, y_pred))
 
     # -------------------------------------------------------------------------
-    # 7. SÉLECTION DES SURVIVANTS DU LASSO & DESIGN DES GRAPHES
+    # 7. SÉLECTION ET VISUALISATION DES FEATURES PRÉPONDÉRANTES (SURVIVANTS LASSO)
     # -------------------------------------------------------------------------
     coefs = lasso_clf.coef_[0]
     df_coefficients = pd.DataFrame({
@@ -213,6 +217,7 @@ def main():
         'Abs_Coefficient': np.abs(coefs)
     })
 
+    # Tri strict par valeur absolue décroissante pour capturer la prépondérance brute
     df_survivants = df_coefficients[df_coefficients['Coefficient'] != 0].sort_values(by='Abs_Coefficient', ascending=False)
     print(f"\n[LASSO] Nombre de variables sélectionnées (survivantes) : {len(df_survivants)} / {X_competition.shape[1]}")
     print(df_survivants[['Feature', 'Coefficient']])
@@ -223,32 +228,40 @@ def main():
     df_survivants_csv['Abs_Coefficient'] = df_survivants_csv['Abs_Coefficient'].astype(str).str.replace('.', ',')
     df_survivants_csv.to_csv("data/survivants_lasso_competition.csv", sep=';', index=False)
 
-    # Graphique standard : Histogramme horizontal des coefficients LASSO survivants
+    # Génération du graphique des features prépondérantes (Top 20 maximum)
     if not df_survivants.empty:
+        df_plot = df_survivants.head(20).copy()
+        
         plt.figure(figsize=(12, 8))
         sns.set_theme(style="whitegrid")
         
-        # Coloration sémantique (Négatif = Oriente CCk [Bleu] | Positif = Oriente CHC [Rouge])
-        df_survivants['Color_Group'] = df_survivants['Coefficient'].apply(lambda x: '#d62728' if x >= 0 else '#1f77b4')
+        # Code couleur : Rouge = Oriente CHC (positif) | Bleu = Oriente CCK (négatif)
+        df_plot['Color_Group'] = df_plot['Coefficient'].apply(lambda x: '#d62728' if x >= 0 else '#1f77b4')
         
+        # Utilisation de l'importance brute (valeur absolue) ou coefficient signé trié par magnitude
         sns.barplot(
-            data=df_survivants.head(20), 
+            data=df_plot, 
             x='Coefficient', 
             y='Feature', 
-            palette=df_survivants['Color_Group'].head(20).tolist(),
+            palette=df_plot['Color_Group'].tolist(),
             hue='Feature',
             legend=False
         )
-        plt.title("Top variables sélectionnées par le LASSO (Rouge = Oriente CHC | Bleu = Oriente CCk)", fontsize=12, fontweight='bold')
-        plt.xlabel("Coefficient dans le modèle")
-        plt.ylabel("Nom de la Feature")
+        
+        plt.axvline(x=0, color='black', linestyle='--', linewidth=1.2)
+        plt.title("Top 20 des variables prépondérantes sélectionnées par LASSO\n(Rouge = Oriente CHC [Cible 1] | Bleu = Oriente CCk [Cible 0])", fontsize=14, fontweight='bold', pad=15)
+        plt.xlabel("Magnitude du Coefficient dans le modèle", fontsize=12, fontweight='bold')
+        plt.ylabel("Nom de la Feature", fontsize=12, fontweight='bold')
+        plt.xticks(fontsize=11)
+        plt.yticks(fontsize=10, fontweight='bold')
         plt.tight_layout()
+        
         plt.savefig(f'{output_plot_dir}/competition_lasso_survivants.png', dpi=300)
         plt.close()
-        print(f"[OK] Graphique de la compétition enregistré dans {output_plot_dir}/")
+        print(f"[OK] Graphique des features prépondérantes enregistré : {output_plot_dir}/competition_lasso_survivants.png")
 
     # -------------------------------------------------------------------------
-    # 8. AJOUT : ANALYSE EN COMPOSANTES PRINCIPALES (ACP / PCA)
+    # 8. ANALYSE EN COMPOSANTES PRINCIPALES (ACP / PCA)
     # -------------------------------------------------------------------------
     print("\nCalcul et génération des figures de l'ACP...")
     pca = PCA(n_components=2)
@@ -259,7 +272,6 @@ def main():
         'type': y_final.map({0: 'CCk', 1: 'CHC'})
     })
     
-    # Graphique PCA 1 : Scatter plot des composantes
     plt.figure(figsize=(8, 6))
     sns.scatterplot(data=pca_df, x='PC1', y='PC2', hue='type', palette='Set1', s=60, alpha=0.7)
     plt.title('PCA of Competition Space (CCk vs CHC)')
@@ -269,7 +281,6 @@ def main():
     plt.savefig(f'{output_plot_dir}/pca_chc_cck_pseudo_features.png', dpi=300)
     plt.close()
 
-    # Graphique PCA 2 : Frontière de décision sur espace ACP
     logreg_pca = LogisticRegression(random_state=42, max_iter=1000)
     logreg_pca.fit(X_pca, y_final)
     x_min, x_max = X_pca[:, 0].min() - 1, X_pca[:, 0].max() + 1
@@ -288,11 +299,10 @@ def main():
     plt.savefig(f'{output_plot_dir}/pca_chc_cck_decision_boundary.png', dpi=300)
     plt.close()
 
-    # Graphique PCA 3 : Scree plot de la variance expliquée
     pca_full = PCA().fit(X_competition_scaled)
     explained_var = pca_full.explained_variance_ratio_
     plt.figure(figsize=(8, 5))
-    components = range(1, min(len(explained_var) + 1, 30))  # Limité aux 30 premières pour la lisibilité
+    components = range(1, min(len(explained_var) + 1, 30))
     plt.bar(components, explained_var[:29], alpha=0.7, color='steelblue')
     plt.step(components, np.cumsum(explained_var[:29]), where='mid', label='Cumulative variance', color='orange', linewidth=2)
     plt.axhline(y=0.95, color='red', linestyle='--', label='95% threshold')

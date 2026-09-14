@@ -20,7 +20,11 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import classification_report, roc_curve, auc, confusion_matrix
 from sklearn.decomposition import PCA
 import warnings
-from validation import evaluer_modele_kfold
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+
+from common.validation import evaluer_modele_kfold
 
 warnings.filterwarnings('ignore')
 

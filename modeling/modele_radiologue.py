@@ -15,7 +15,11 @@ from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 import seaborn as sns
-from validation import evaluer_modele_kfold
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+
+from common.validation import evaluer_modele_kfold
 
 def load_and_merge_data(imagerie_path, descriptif_path):
     """Charge les deux fichiers et réalise la jointure sur le numéro de patient."""

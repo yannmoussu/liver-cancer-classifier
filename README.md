@@ -8,24 +8,31 @@ Ce projet vise à analyser des caractéristiques radiomiques extraites d'images 
 
 ## Structure du projet
 
-- `automondor/` : Dossier contenant des scripts et notebooks principaux.
+Les scripts sont organisés par étape du pipeline. `common/validation.py` est le
+seul module partagé entre eux (évaluation par k-fold, tracé des résultats).
+
+- `common/` : Utilitaires partagés (`validation.py`).
+- `data_processing/` : Préparation des features brutes (`flattening_multislice.py`, `delta_features.py`).
+- `feature_selection/` : Analyse de corrélation et sélection de features (`correlation.py`, `selection_features.py`, `regression_correlation.py`, `visualisation_correlation.py`).
+- `modeling/` : Entraînement des modèles (baseline, LASSO, grid search, optimisation des poids) — `baseline.py`, `lasso.py`, `gridsearch.py`, `optipoids.py`, `modele_radiologue.py`, `run_group_lasso.py`, `poids_*.py`.
+- `visualization/` : Scripts de visualisation des données et des résultats.
+- `experiments/` : Variantes exploratoires (LightGBM/XGBoost/SVM, group LASSO, validations alternatives).
+- `notebooks/` : Notebooks Jupyter (préparation, matching, PCA, visualisations).
 - `data/` : Jeux de données utilisés (features, métadonnées patients, résultats intermédiaires).
 - `plots/` : Graphiques générés lors des expérimentations.
-- Fichiers Python autonomes : divers traitements et modèles.
-- Notebooks Jupyter : analyses interactives et visualisations.
 
 ## Principaux fichiers
 
-- `poids_optimisés_lasso.py` : Script principal pour l'optimisation des poids dans un modèle LASSO en combinant pseudo-features et features globales.
-- `lasso.py` : Implémentation de base de la régression LASSO.
-- `validation.py` : Fonctions de validation croisée et d'évaluation des modèles.
-- `correlation.py` : Analyse de corrélation entre features.
-- `flattening*.py` / `flattening.ipynb` : Processus de flattening des features multislices.
-- `matching.ipynb` : Appariement des données d'imagerie et cliniques.
-- `pca_flattened.ipynb` : Analyse en composantes principales (PCA) sur les features aplaties.
-- `visualisation_clem.ipynb` : Visualisations diverses des résultats.
-- `baseline.py` : Modèle de référence.
-- `*.ipynb` : Notebooks d'exploration et de production.
+- `modeling/poids_optimisés_lasso.py` : Script principal pour l'optimisation des poids dans un modèle LASSO en combinant pseudo-features et features globales.
+- `modeling/lasso.py` : Implémentation de base de la régression LASSO.
+- `common/validation.py` : Fonctions de validation croisée et d'évaluation des modèles.
+- `feature_selection/correlation.py` : Analyse de corrélation entre features.
+- `data_processing/flattening_multislice.py` / `notebooks/flattening.ipynb` : Processus de flattening des features multislices.
+- `notebooks/matching.ipynb` : Appariement des données d'imagerie et cliniques.
+- `notebooks/pca_flattened.ipynb` : Analyse en composantes principales (PCA) sur les features aplaties.
+- `notebooks/visualisation_clem.ipynb` : Visualisations diverses des résultats.
+- `modeling/baseline.py` : Modèle de référence.
+- `notebooks/*.ipynb` : Notebooks d'exploration et de production.
 
 ## Dépendances
 
@@ -48,10 +55,11 @@ pip install pandas numpy matplotlib seaborn scikit-learn jupyter
 
 ### Exécution des scripts Python
 
-Les scripts peuvent être lancés directement depuis la ligne de commande :
+Les scripts peuvent être lancés directement depuis la ligne de commande,
+**depuis la racine du dépôt** (les chemins vers `data/` sont relatifs à la racine) :
 
 ```bash
-python poids_optimisés_lasso.py
+python modeling/poids_optimisés_lasso.py
 ```
 
 Certains scripts peuvent nécessiter des arguments ou des chemins de fichiers spécifiques ; consultez l'en-tête de chaque script pour plus de détails.
@@ -64,7 +72,10 @@ Lancer Jupyter Notebook dans le répertoire du projet :
 jupyter notebook
 ```
 
-Puis ouvrir les notebooks d'intérêt (par exemple `flattening.ipynb`, `matching.ipynb`, etc.) et exécuter les cellules étape par étape.
+Puis ouvrir les notebooks d'intérêt dans `notebooks/` (par exemple `flattening.ipynb`,
+`matching.ipynb`, etc.) et exécuter les cellules étape par étape. La première cellule
+de chaque notebook se replace automatiquement à la racine du dépôt, donc peu importe
+le répertoire de travail avec lequel Jupyter démarre.
 
 ## Résultats
 
@@ -77,7 +88,7 @@ Les sorties comprennent :
 
 ## Notes
 
-- Les chemins d'accès aux fichiers de données sont souvent codés en dur dans les scripts ; assurez-vous que le dossier `data/` est présent au même niveau que les scripts.
+- Les chemins d'accès aux fichiers de données sont souvent codés en dur dans les scripts (relatifs à la racine du dépôt, ex. `data/...`) ; lancez toujours les scripts depuis la racine du dépôt.
 - Les jeux de données proviennent d'études médicales réelles et sont anonymisés.
 - Ce projet est destiné à des fins de recherche et de démonstration.
 
