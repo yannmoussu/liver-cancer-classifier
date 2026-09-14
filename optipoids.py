@@ -97,5 +97,5 @@ colonnes_features = [col for col in df_resultats.columns if col.startswith("Feat
 df_resultats = df_resultats[colonnes_de_base + colonnes_features]
 
 df_resultats = df_resultats.fillna("")
-df_resultats.to_csv("poids_modeles_radiomiques.csv", sep=";", index=False, encoding="utf-8-sig")
+df_resultats.to_csv("data/poids_modeles_radiomiques.csv", sep=";", index=False, encoding="utf-8-sig")
 
