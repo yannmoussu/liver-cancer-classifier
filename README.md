@@ -18,7 +18,7 @@ seul module partagé entre eux (évaluation par k-fold, tracé des résultats).
 - `visualization/` : Scripts de visualisation des données et des résultats.
 - `experiments/` : Variantes exploratoires (LightGBM/XGBoost/SVM, group LASSO, validations alternatives).
 - `notebooks/` : Notebooks Jupyter (préparation, matching, PCA, visualisations).
-- `data/` : Jeux de données utilisés (features, métadonnées patients, résultats intermédiaires).
+- `data/` : **Non inclus dans ce dépôt** (voir section [Données](#données) ci-dessous).
 - `plots/` : Graphiques générés lors des expérimentations.
 
 ## Principaux fichiers
@@ -86,6 +86,25 @@ Les sorties comprennent :
 - Graphiques enregistrés dans le dossier `plots/` (courbes ROC, matrice de confusion, distributions, etc.).
 - Rapports de classification dans la console ou dans des fichiers logs.
 
+## Données
+
+Ce dépôt est une version publique, préparée à des fins de portfolio, d'un projet
+mené en groupe. Le dossier `data/` n'est **pas inclus** : il contenait des
+données radiomiques et cliniques de patients réelles (bien qu'anonymisées),
+dont la publication n'a pas été autorisée par l'établissement encadrant le
+projet. `data/` est donc listé dans `.gitignore`.
+
+À titre indicatif, ce dossier aurait normalement contenu :
+
+- Les features radiomiques extraites des images médicales (par lésion / slice).
+- Les métadonnées cliniques des patients (labels, variables démographiques, etc.).
+- Les fichiers CSV intermédiaires générés par les étapes de prétraitement,
+  d'aplatissement (`flattening`) et d'appariement (`matching`).
+
+Pour exécuter les scripts ou notebooks de ce dépôt, il faut disposer de ces
+mêmes fichiers sous `data/` (mêmes noms et structure que ceux référencés dans
+le code) ; sans eux, les scripts échoueront à l'étape de lecture des données.
+
 ## Notes
 
 - Les chemins d'accès aux fichiers de données sont souvent codés en dur dans les scripts (relatifs à la racine du dépôt, ex. `data/...`) ; lancez toujours les scripts depuis la racine du dépôt.
@@ -100,5 +119,5 @@ Yann MOUSSU, Mathéo CAHITTE, Ilias BOURHRARA, Antonin RICOCHON & Clément COURN
 
 Le code de ce projet est distribué sous licence MIT (voir [LICENSE](LICENSE)).
 Les jeux de données du dossier `data/` sont issus d'une étude médicale réelle
-(anonymisée) et ne sont pas couverts par cette licence — leur diffusion est
-en attente d'autorisation.
+(anonymisée) et ne sont pas couverts par cette licence — ils ne sont pas
+publiés dans ce dépôt (voir section [Données](#données)).
