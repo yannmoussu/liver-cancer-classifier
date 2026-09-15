@@ -45,10 +45,10 @@ Les principaux packages Python utilisés sont :
 - scikit-learn
 - Jupyter (pour les notebooks)
 
-Vous pouvez les installer via pip :
+Vous pouvez les installer via le fichier `requirements.txt` fourni :
 
 ```bash
-pip install pandas numpy matplotlib seaborn scikit-learn jupyter
+pip install -r requirements.txt
 ```
 
 ## Utilisation
