@@ -1,4 +1,4 @@
-# Liver cancer classifier
+# Liver Cancer Classifier
 
 Projet d'analyse de données radiomiques pour une compétition de classification ou de prédiction de survie en médecine.
 
